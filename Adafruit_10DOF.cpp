@@ -26,6 +26,13 @@
 
 #define PI  (3.14159265F);
 
+/* Globals needed by the low pass filter */
+/* smoothening factor of 0.5 chosen */
+const float alpha = 0.5;
+float prevX = 0;
+float prevY = 0;
+float prevZ = 0;
+
 /***************************************************************************
  PRIVATE FUNCTIONS
  ***************************************************************************/
@@ -89,12 +96,23 @@ bool Adafruit_10DOF::accelGetOrientation(sensors_event_t *event, sensors_vec_t *
 {
   /* Make sure the input is valid, not null, etc. */
   if (event == NULL) return false;
-  if (orientation == NULL) return false;
-
+  if (orientation == NULL) return false; 
+    
   float t_pitch;
   float t_roll;
   float t_heading;
   float signOfZ = event->acceleration.z >= 0 ? 1.0F : -1.0F;
+    
+  prevX = (event->acceleration.x * alpha) + (prevX * (1 - alpha));
+  prevY = (event->acceleration.y * alpha) + (prevY * (1 - alpha));
+  prevZ = (event->acceleration.z * alpha) + (prevZ * (1 - alpha));
+    
+  /* low pass filter, the calculation of roll and pitch are same as previous */
+  t_roll = prevX * prevX + prevZ * prevZ;
+  orientation->roll = (float)atan2(prevY, sqrt(t_roll)) * 180 / PI;
+    
+  t_pitch = prevY * prevY + prevZ * prevZ;
+  orientation->pitch = (float)atan2(prevX, signOfZ * sqrt(t_pitch)) * 180 / PI;
 
   /* roll: Rotation around the longitudinal axis (the plane body, 'X axis'). -90<=roll<=90    */
   /* roll is positive and increasing when moving downward                                     */
@@ -104,8 +122,9 @@ bool Adafruit_10DOF::accelGetOrientation(sensors_event_t *event, sensors_vec_t *
   /*                          sqrt(x^2 + z^2)                                                 */
   /* where:  x, y, z are returned value from accelerometer sensor                             */
 
-  t_roll = event->acceleration.x * event->acceleration.x + event->acceleration.z * event->acceleration.z;
-  orientation->roll = (float)atan2(event->acceleration.y, sqrt(t_roll)) * 180 / PI;
+  // commented out roll calculations 
+  /*t_roll = event->acceleration.x * event->acceleration.x + event->acceleration.z * event->acceleration.z;
+  orientation->roll = (float)atan2(event->acceleration.y, sqrt(t_roll)) * 180 / PI;*/
 
   /* pitch: Rotation around the lateral axis (the wing span, 'Y axis'). -180<=pitch<=180)     */
   /* pitch is positive and increasing when moving upwards                                     */
@@ -115,8 +134,9 @@ bool Adafruit_10DOF::accelGetOrientation(sensors_event_t *event, sensors_vec_t *
   /*                          sqrt(y^2 + z^2)                                                 */
   /* where:  x, y, z are returned value from accelerometer sensor                             */
 
-  t_pitch = event->acceleration.y * event->acceleration.y + event->acceleration.z * event->acceleration.z;
-  orientation->pitch = (float)atan2(event->acceleration.x, signOfZ * sqrt(t_pitch)) * 180 / PI;
+  // commented out pitch calculation
+  /*t_pitch = event->acceleration.y * event->acceleration.y + event->acceleration.z * event->acceleration.z;
+  orientation->pitch = (float)atan2(event->acceleration.x, signOfZ * sqrt(t_pitch)) * 180 / PI;*/
 
   return true;
 }
@@ -201,8 +221,8 @@ bool Adafruit_10DOF::magTiltCompensation(sensors_axis_t axis, sensors_event_t *m
 
   float cosRoll = (float)cos(rollRadians);
   float sinRoll = (float)sin(rollRadians);
-  float cosPitch = (float)cos(-1*pitchRadians);
-  float sinPitch = (float)sin(-1*pitchRadians);
+  float cosPitch = (float)cos(pitchRadians);
+  float sinPitch = (float)sin(pitchRadians);
 
   /* The tilt compensation algorithm                            */
   /* Xh = X.cosPitch + Z.sinPitch                               */
@@ -332,7 +352,7 @@ bool Adafruit_10DOF::fusionGetOrientation(sensors_event_t *accel_event, sensors_
     orientation->pitch = accel_event->acceleration.x > 0 ? (PI_F / 2) : (-PI_F / 2);
   else
     orientation->pitch = (float)atan(-accel_event->acceleration.x / (accel_event->acceleration.y * sin(orientation->roll) + \
-                                                                     accel_event->acceleration.z * cos(orientation->roll)));
+                                                                     aaccel_event->acceleration.z * cos(orientation->roll)));
 
   /* heading: Rotation around the Z-axis. -180 <= roll <= 180                                       */
   /* a positive heading angle is defined to be a clockwise rotation about the positive Z-axis       */
